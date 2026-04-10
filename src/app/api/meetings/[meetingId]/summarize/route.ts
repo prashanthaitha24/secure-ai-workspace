@@ -1,8 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { generateText, Output } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
 import { db } from "@/lib/db";
+
+const groq = createGroq();
 
 const summarySchema = z.object({
   summary: z.string().describe("A concise 2-4 sentence summary of the meeting"),
@@ -62,7 +64,7 @@ export async function POST(
   }
 
   const { output } = await generateText({
-    model: anthropic("claude-sonnet-4-6"),
+    model: groq("llama-3.3-70b-versatile"),
     output: Output.object({ schema: summarySchema }),
     prompt: `You are an expert meeting note-taker for a DevOps/engineering team.
 Analyze the following meeting transcript and generate structured notes.
