@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  description String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members   WorkspaceMember[]
+  channels  Channel[]
+  meetings  Meeting[]
+  files     File[]
+  auditLogs AuditLog[]
+
+  @@index([ownerId])
+}
+
+model WorkspaceMember {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(MEMBER)
+  displayName String?
+  avatarUrl   String?
+  joinedAt    DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+model Channel {
+  id          String      @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  type        ChannelType @default(PUBLIC)
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+enum ChannelType {
+  PUBLIC
+  PRIVATE
+  DM
+}
+
+model Message {
+  id          String             @id @default(cuid())
+  channelId   String
+  userId      String
+  content     String             @db.Text
+  contentType MessageContentType @default(TEXT)
+  edited      Boolean            @default(false)
+  parentId    String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  channel Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  parent  Message?  @relation("ThreadReplies", fields: [parentId], references: [id])
+  replies Message[] @relation("ThreadReplies")
+
+  @@index([channelId, createdAt])
+  @@index([userId])
+}
+
+enum MessageContentType {
+  TEXT
+  FILE
+  MEETING_RECAP
+  SYSTEM
+}
+
+model Meeting {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  title        String
+  channelId    String?
+  hostId       String
+  status       MeetingStatus @default(SCHEDULED)
+  recordingUrl String?
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  participants MeetingParticipant[]
+  transcript   MeetingTranscript?
+  summary      MeetingSummary?
+
+  @@index([workspaceId])
+  @@index([hostId])
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model MeetingParticipant {
+  id        String    @id @default(cuid())
+  meetingId String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+}
+
+model MeetingTranscript {
+  id        String   @id @default(cuid())
+  meetingId String   @unique
+  segments  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model MeetingSummary {
+  id          String   @id @default(cuid())
+  meetingId   String   @unique
+  summary     String   @db.Text
+  keyPoints   Json
+  actionItems Json
+  decisions   Json
+  createdAt   DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model File {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  uploadedById String
+  name         String
+  mimeType     String
+  size         Int
+  blobUrl      String
+  channelId    String?
+  isPublic     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([channelId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId])
+}
